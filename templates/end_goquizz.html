@@ -1,14 +1,27 @@
-<!doctype html>
-<title>A short quiz</title>
-<link rel=stylesheet type=text/css href='{{ url_for('static',filename='style_miniquiz.css')}}'>
-<div class=page>
-  <h1>A short quiz</h1>
-  <div class=metanav>
-
-  
-<h4>
-Thank you for participating!
-</h4>
-
-</div>
-
+<html>
+  <head>
+    <link href="/css/bootstrap.min.css" rel="stylesheet">
+  </head>
+  <body>
+    <div class=page>
+      <h1>A short Kubernetes quiz</h1>
+      <div class=metanav>
+      <br/> <br/>
+    
+      <h3>
+    Thank you for participating!
+    </h3>
+  </div>    
+    
+    <div class=""form-control>
+    <form action="/quizz" method="POST">
+      <button type="button" class="close"
+        aria-label="Close" disabled>
+        <span aria-hidden="true">×</span>
+      </button>
+    </form>
+    </div>
+    
+    <script src="/js/bootstrap.min.js"></script>
+  </body>
+</html>

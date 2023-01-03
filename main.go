@@ -14,6 +14,7 @@ import (
 )
 
 var tmpl *template.Template
+var tmpl_end *template.Template
 
 // Structs for JSON must be capitalized
 type options struct {
@@ -28,7 +29,7 @@ type question struct {
 }
 
 var questions []question
-var qIndex int = 1
+var qIndex int = 0
 
 // FuncMap is the way to inject external data to Templates
 var getCurrentQuestionIndex = func() int { return qIndex }
@@ -94,20 +95,25 @@ func getQuizzMock(category string) ([]question, error) {
 
 func quizz(w http.ResponseWriter, r *http.Request) {
 
-	// type question struct {
-	// 	Id       int       `json:"id"`
-	// 	Question string    `json:"question"`
-	// 	Options  []options `json:"options"`
-	// }
-	// Num := 1
-	// Ntot := 1
-	log.Println("Calling quizz()")
-	question := questions[qIndex]
+	r.ParseForm()
+	response := r.Form.Get("answer")
 
-	tmpl.Execute(w, question)
+	if response != "" && qIndex < len(questions) {
+		fmt.Printf("[%2d/%2d] Question [%d], Got answer: %s\n", qIndex, len(questions), questions[qIndex].Id, response)
+	}
+
+	log.Println("Calling quizz()")
+
+	if qIndex < len(questions) {
+		tmpl.Execute(w, questions[qIndex])
+	} else {
+		tmpl_end.Execute(w, "")
+		// os.Exit(0)
+	}
 
 	// next question
 	qIndex++
+
 }
 
 func main() {
@@ -124,6 +130,7 @@ func main() {
 	mux := http.NewServeMux()
 	// tmpl = template.Must(template.ParseFiles("templates/index.html"))
 	tmpl, _ = template.New("goquizz.html").Funcs(funcs).ParseFiles("templates/goquizz.html")
+	tmpl_end, _ = template.New("end_goquizz.html").Funcs(funcs).ParseFiles("templates/end_goquizz.html")
 
 	fs := http.FileServer(http.Dir("./static"))
 	mux.Handle("/", fs)
