@@ -3,12 +3,17 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"html/template"
+	"log"
 	"math/rand"
+	"net/http"
+	"os"
 	"time"
 
 	"gopkg.in/yaml.v2"
 )
+
+var tmpl *template.Template
 
 // Structs for JSON must be capitalized
 type options struct {
@@ -21,6 +26,15 @@ type question struct {
 	Question string    `json:"question"`
 	Options  []options `json:"options"`
 }
+
+var questions []question
+var qIndex int = 1
+
+// FuncMap is the way to inject external data to Templates
+var getCurrentQuestionIndex = func() int { return qIndex }
+var getNumberOfQuestion = func() int { return len(questions) }
+var funcs = template.FuncMap{"getCurrentQuestionIndex": getCurrentQuestionIndex,
+	"getNumberOfQuestion": getNumberOfQuestion}
 
 // Transform a Yaml to a generic struct using generics
 func convert(i interface{}) interface{} {
@@ -42,15 +56,16 @@ func convert(i interface{}) interface{} {
 // to simutate the Rest call
 // We use the served resources locally
 // parameter "category" it a filter for the Quizz category
-func getQuizzMock(category string) []byte {
-	s, err := ioutil.ReadFile("./resources/quizz.yml")
+func getQuizzMock(category string) ([]question, error) {
+	s, err := os.ReadFile("./resources/quizz.yml")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	// fmt.Printf("Input: %s\n", s)
 	var body interface{}
-	if err := yaml.Unmarshal([]byte(s), &body); err != nil {
-		panic(err)
+	err = yaml.Unmarshal(s, &body)
+	if err != nil {
+		return nil, err
 	}
 
 	body = convert(body)
@@ -65,19 +80,56 @@ func getQuizzMock(category string) []byte {
 
 	b, err := json.Marshal(subbody)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return b
+	// Unmarshall to struct question
+	q := []question{}
+
+	err = json.Unmarshal(b, &q)
+	if err != nil {
+		return nil, err
+	}
+	return q, nil
+}
+
+func quizz(w http.ResponseWriter, r *http.Request) {
+
+	// type question struct {
+	// 	Id       int       `json:"id"`
+	// 	Question string    `json:"question"`
+	// 	Options  []options `json:"options"`
+	// }
+	// Num := 1
+	// Ntot := 1
+	log.Println("Calling quizz()")
+	question := questions[qIndex]
+
+	tmpl.Execute(w, question)
+
+	// next question
+	qIndex++
 }
 
 func main() {
-	jsonBytes := getQuizzMock("kubernetes")
-	// fmt.Printf("Json: %s", jsonBytes)
-	q := []question{}
 
-	err := json.Unmarshal(jsonBytes, &q)
+	fmt.Printf("Go go go ...\n")
+	var err error
+	questions, err = getQuizzMock("kubernetes")
 	if err != nil {
-		fmt.Println("Error : %v", err)
+		fmt.Printf("Error getting QuizzMock data: %s\n", err.Error())
 	}
-	fmt.Printf("Got: %v", q)
+
+	// fmt.Printf("Got: %v", q)
+
+	mux := http.NewServeMux()
+	// tmpl = template.Must(template.ParseFiles("templates/index.html"))
+	tmpl, _ = template.New("goquizz.html").Funcs(funcs).ParseFiles("templates/goquizz.html")
+
+	fs := http.FileServer(http.Dir("./static"))
+	mux.Handle("/", fs)
+	// mux.Handle("/static/", http.StripPrefix("/static/", fs))
+	mux.HandleFunc("/quizz", quizz)
+
+	log.Fatal(http.ListenAndServe(":9091", mux))
+
 }
