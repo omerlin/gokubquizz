@@ -1,0 +1,14 @@
+demo:
+  - id: 1
+    question: Waht do you think about the future ?
+    options:
+      - {id: 1, label: There is no future}
+      - {id: 2, label: Well let see what happens, will be challenging ...}
+  - id: 2
+    question: What is the best development language for you ?
+    options:
+      - {id: 1, label: I don't give a shit}
+      - {id: 2, label: Java for enterprise }
+      - {id: 3, label: Golang as this is the best compromise simplicity/performance }
+      - {id: 4, label: Rust is the future ! }
+      - {id: 5, label: Python simple and powerful for analytics, ML ! }

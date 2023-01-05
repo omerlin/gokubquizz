@@ -1,3 +1,6 @@
-uri: http://quizz.cossme.pw
+# This is the external URI where the Quizz server is located
+uri: http://quizz.nilrem.org
+# This is the user executing the Quizz
 user: omerlin@gmail.com
-category: kubernetes
+# This is the Quizz Category (Could be demo,linux,kubernetes,docker ...)
+category: demo

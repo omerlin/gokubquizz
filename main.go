@@ -35,13 +35,13 @@ type question struct {
 
 // What we keep after a Quizz execution
 type Response struct {
-	user       string
-	quizz      string
-	env        map[string]string
-	start_date int64
-	end_date   int64
-	duration   uint64
-	result     map[string]string
+	User       string            `json:"user"`
+	Quizz      string            `json:"quizz"`
+	Env        map[string]string `json:"env"`
+	Start_date int64             `json:"start_date"`
+	End_date   int64             `json:"end_date"`
+	Duration   uint64            `json:"duration"`
+	Result     map[string]string `json:"result"`
 }
 
 var resultsQuizz = make(map[string]string)
@@ -52,6 +52,7 @@ var questions []question
 var qIndex int = 0
 var topic string
 var externalUri string
+var redirectUrl string
 
 // FuncMap is the way to inject external data to Templates
 var getCurrentQuestionIndex = func() int { return qIndex + 1 }
@@ -66,7 +67,7 @@ var funcs = template.FuncMap{"getCurrentQuestionIndex": getCurrentQuestionIndex,
 // We use the served resources locally
 // parameter "category" it a filter for the Quizz category
 func getQuizzMock(category string) ([]question, error) {
-	s, err := os.ReadFile("./resources/quizz.yml")
+	s, err := os.ReadFile(fmt.Sprintf("./resources/quizz_%s.yml", category))
 	if err != nil {
 		return nil, err
 	}
@@ -101,53 +102,83 @@ func getQuizzMock(category string) ([]question, error) {
 	return q, nil
 }
 
-// Writing or sending the Quizz response
+// Writing locally (test) or sending the Quizz response to the server
 func manageResults(r *Response) {
-	fmt.Printf("%v", *r)
+	// fmt.Printf("%v", *r)
+
+	b, err := json.Marshal(r)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = os.WriteFile("result.json", b, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 }
 
 // End quizz linked to the end_goquizz.html template
 func endquizz(w http.ResponseWriter, r *http.Request) {
-	// here we send the response to the server
-	fmt.Println("Terminating the Quizz ...")
-	respMessage.end_date = time.Now().UnixMilli()
-	respMessage.duration = uint64(respMessage.end_date - respMessage.start_date)
-	respMessage.result = resultsQuizz
 
-	// fmt.Printf("---> %v", respMessage)
-	// Writing back to a file the result
-	manageResults(&respMessage)
+	switch r.Method {
+	case "GET":
+		log.Printf("[GET] [index=%d] /endquizz Redirect to /quizz", qIndex)
+		http.Redirect(w, r, redirectUrl, http.StatusSeeOther)
+	case "POST":
+		// here we send the response to the server
+		fmt.Println("Terminating the Quizz ...")
+		respMessage.End_date = time.Now().UnixMilli()
+		respMessage.Duration = uint64(respMessage.End_date - respMessage.Start_date)
+		respMessage.Result = resultsQuizz
 
-	os.Exit(0)
+		// Writing back to a file the result
+		manageResults(&respMessage)
+
+		os.Exit(0)
+	default:
+		log.Fatalf("Not supported method=%s", r.Method)
+	}
 }
 
+// quizz execute the Whole quizz
 func quizz(w http.ResponseWriter, r *http.Request) {
 
-	if r.Method == "POST" {
+	switch r.Method {
+	case "POST":
+		log.Printf("[POST] [index=%d]", qIndex)
 		r.ParseForm()
 		response := r.Form.Get("answer")
 
 		if qIndex < len(questions) {
 			if response != "" {
-				fmt.Printf("[%2d/%2d] Question [%d], Got answer: %s\n", qIndex, len(questions), questions[qIndex].Id, response)
+				log.Printf("[%2d/%2d] Question [%d], Got answer: %s\n", qIndex, len(questions), questions[qIndex].Id, response)
 				// Storing result
 				resultsQuizz[strconv.Itoa(questions[qIndex].Id)] = response
 			} else {
 				fmt.Printf("Warning ! No answer for question %d\n", questions[qIndex].Id)
 			}
+			// Next
+			qIndex++
+
+			if qIndex == len(questions) {
+				log.Printf("Ending quizz() - [index=%d]", qIndex)
+				tmpl_end.Execute(w, "")
+
+			} else {
+				log.Printf("[POST] calling template")
+				tmpl.Execute(w, questions[qIndex])
+			}
 		}
+	case "GET":
+		if qIndex < len(questions) {
+			log.Printf("[GET] [index=%d]", qIndex)
+			// Here we don't use a redirect as the behaviour is weird
+			tmpl.Execute(w, questions[qIndex])
+		}
+	default:
+		log.Fatalf("Not supported method=%s", r.Method)
 	}
-
-	log.Printf("Calling quizz() - [index=%d]", qIndex)
-
-	if qIndex < len(questions) {
-		tmpl.Execute(w, questions[qIndex])
-	} else {
-		tmpl_end.Execute(w, "")
-	}
-
-	// next question
-	qIndex++
 
 }
 
@@ -170,41 +201,47 @@ func readConfig() {
 	externalUri = fmt.Sprintf("%s", data["uri"])
 	log.Printf("External server URI: %s", externalUri)
 
-	respMessage.quizz = topic
-	respMessage.user = user
+	respMessage.Quizz = topic
+	log.Printf("Quizz topic is: %s", topic)
+	respMessage.User = user
 
 	// os.environment in a filtered map instead of list of string
-	respMessage.env = helper.FilteredEnvValues([]string{"LS_COLORS", "PS1"})
+	respMessage.Env = helper.FilteredEnvValues([]string{"LS_COLORS", "PS1"})
 
-	respMessage.start_date = time.Now().UnixMilli()
+	respMessage.Start_date = time.Now().UnixMilli()
 }
 
 func main() {
 
-	fmt.Printf("Go go go ...\n")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "9091"
+	}
+	redirectUrl = fmt.Sprintf("http://localhost:%s/quizz", port)
 
+	// We must have a config.yml file
 	readConfig()
-	fmt.Printf("---> %v", respMessage)
 
+	// Load the Quizz data
 	var err error
-	questions, err = getQuizzMock("kubernetes")
+	questions, err = getQuizzMock(topic)
 	if err != nil {
 		fmt.Printf("Error getting QuizzMock data: %s\n", err.Error())
 	}
 
-	// fmt.Printf("Got: %v", q)
-
 	mux := http.NewServeMux()
-	// tmpl = template.Must(template.ParseFiles("templates/index.html"))
 	tmpl, _ = template.New("goquizz.html").Funcs(funcs).ParseFiles("templates/goquizz.html")
 	tmpl_end, _ = template.New("end_goquizz.html").Funcs(funcs).ParseFiles("templates/end_goquizz.html")
 
+	// Static resources management
 	fs := http.FileServer(http.Dir("./static"))
-	mux.Handle("/", fs)
-	// mux.Handle("/static/", http.StripPrefix("/static/", fs))
-	mux.HandleFunc("/quizz", quizz)
-	mux.HandleFunc("/endquizz", endquizz)
+	mux.Handle("/static/", http.StripPrefix("/static/", fs))
 
-	log.Fatal(http.ListenAndServe(":9091", mux))
+	// Handlers
+	mux.Handle("/", http.RedirectHandler(redirectUrl, http.StatusSeeOther)) // redirect to /quizz
+	mux.HandleFunc("/quizz", quizz)
+	mux.HandleFunc("/endquizz", endquizz) // is called when quizz is finished
+
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), mux))
 
 }
