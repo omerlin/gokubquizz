@@ -18,9 +18,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var tmpl *template.Template
-var tmpl_end *template.Template
-
 // Structs for JSON must be capitalized
 type options struct {
 	Id    int    `json:"id"`
@@ -44,8 +41,10 @@ type Response struct {
 	Result     map[string]string `json:"result"`
 }
 
-var resultsQuizz = make(map[string]string)
+var tmpl *template.Template
+var tmpl_end *template.Template
 
+var resultsQuizz = make(map[string]string)
 var respMessage Response
 
 var questions []question
@@ -53,15 +52,7 @@ var qIndex int = 0
 var topic string
 var externalUri string
 var redirectUrl string
-
-// FuncMap is the way to inject external data to Templates
-var getCurrentQuestionIndex = func() int { return qIndex + 1 }
-var getNumberOfQuestion = func() int { return len(questions) }
-var getTopic = func() string { return cases.Title(language.English, cases.Compact).String(topic) }
-
-var funcs = template.FuncMap{"getCurrentQuestionIndex": getCurrentQuestionIndex,
-	"getNumberOfQuestion": getNumberOfQuestion,
-	"getTopic":            getTopic}
+var user string
 
 // to simutate the Rest call
 // We use the served resources locally
@@ -195,7 +186,7 @@ func readConfig() {
 	}
 	// Quizz category in lowercase
 	topic = strings.ToLower(fmt.Sprintf("%s", data["category"]))
-	user := fmt.Sprintf("%s", data["user"])
+	user = fmt.Sprintf("%s", data["user"])
 
 	// External URI is to get the Quizz data & store the Quizz results
 	externalUri = fmt.Sprintf("%s", data["uri"])
@@ -228,6 +219,16 @@ func main() {
 	if err != nil {
 		fmt.Printf("Error getting QuizzMock data: %s\n", err.Error())
 	}
+
+	getRandomResponse := func() int { return rand.Intn(len(questions[qIndex].Options)) }
+	// This is the only way i found to show global variable in HTML templates
+	// See: https://pkg.go.dev/html/template#Template.Funcs
+	// If the template use a fonction not referenced, there is a panic
+	var funcs = template.FuncMap{"getCurrentQuestionIndex": func() int { return qIndex + 1 },
+		"getNumberOfQuestion": func() int { return len(questions) },
+		"getTopic":            func() string { return cases.Title(language.English, cases.Compact).String(topic) },
+		"getUser":             func() string { return strings.Split(user, "@")[0] },
+		"getRandomResponse":   getRandomResponse}
 
 	mux := http.NewServeMux()
 	tmpl, _ = template.New("goquizz.html").Funcs(funcs).ParseFiles("templates/goquizz.html")

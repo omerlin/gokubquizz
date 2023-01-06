@@ -1,6 +1,6 @@
 demo:
   - id: 1
-    question: Waht do you think about the future ?
+    question: What do you think about the future ?
     options:
       - {id: 1, label: There is no future}
       - {id: 2, label: Well let see what happens, will be challenging ...}

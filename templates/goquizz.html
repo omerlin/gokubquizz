@@ -6,7 +6,7 @@
     <div class="container">
       <div class="page-title">
         <h1>{{ getTopic }} quizz</h1>
-        <p class="lead">Answer to question #{{ getCurrentQuestionIndex }} / {{ getNumberOfQuestion }}</p>
+        <p class="lead">{{ getUser }}, answer to question #{{ getCurrentQuestionIndex }} / {{ getNumberOfQuestion }}</p>
         <hr />
       </div>
 
@@ -18,10 +18,10 @@
         <!-- <div class="form-group">
           <textarea class="form-control" name="body" cols="30" rows="10"></textarea>
         </div> -->
-
+        {{ $randomChoice := getRandomResponse }}
         {{ range $index,$element := .Options }}
         <div class="form-group">
-          <input type='radio' name='answer' id="r{{$index}}"  value="{{ .Id }}" />
+          <input type='radio' name='answer' id="r{{$index}}" {{ if eq $index $randomChoice}}checked{{end}} value="{{ .Id }}" />
           <label class="label label-default" for="l$index">{{ .Label }}</label>        
         </div>
         {{ end }}
