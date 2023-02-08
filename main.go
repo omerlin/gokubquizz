@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"gokubquizz/helper"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
@@ -54,11 +56,33 @@ var externalUri string
 var redirectUrl string
 var user string
 
+func getRemoteData(apiURL string) ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, apiURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if res.Body != nil {
+		defer res.Body.Close()
+	}
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+	//
+	return body, nil
+}
+
 // to simutate the Rest call
 // We use the served resources locally
 // parameter "category" it a filter for the Quizz category
 func getQuizzMock(category string) ([]question, error) {
-	s, err := os.ReadFile(fmt.Sprintf("./resources/quizz_%s.yml", category))
+
+	// s, err := os.ReadFile(fmt.Sprintf("./resources/quizz_%s.yml", category))
+	s, err := getRemoteData(fmt.Sprintf("%s/srv/quizz/%s", externalUri, category))
 	if err != nil {
 		return nil, err
 	}
@@ -102,10 +126,17 @@ func manageResults(r *Response) {
 		log.Fatal(err)
 	}
 
-	err = os.WriteFile("result.json", b, 0644)
+	resp, err := http.Post(fmt.Sprintf("%s/srv/answer", externalUri), "application/json", bytes.NewBuffer(b))
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		return
 	}
+	defer resp.Body.Close()
+
+	// err = os.WriteFile("result.json", b, 0644)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 }
 
@@ -175,9 +206,13 @@ func quizz(w http.ResponseWriter, r *http.Request) {
 
 // Read the external yaml config and prepare the Response message
 func readConfig() {
-	s, err := os.ReadFile("./config.yml")
+	configFile := os.Getenv("CLIAPPENV")
+	if configFile == "" {
+		configFile = "/etc/config.yml"
+	}
+	s, err := os.ReadFile(configFile)
 	if err != nil {
-		log.Fatalf("Uname to read the ./config.yml file, reason: %v", err.Error())
+		log.Fatalf("Uname to read the %s file, reason: %v", configFile, err.Error())
 	}
 	data := make(map[interface{}]interface{})
 	err = yaml.Unmarshal(s, &data)
@@ -204,9 +239,9 @@ func readConfig() {
 
 func main() {
 
-	port := os.Getenv("PORT")
+	port := os.Getenv("CLIAPPPORT")
 	if port == "" {
-		port = "9091"
+		port = "8091"
 	}
 	redirectUrl = fmt.Sprintf("http://localhost:%s/quizz", port)
 

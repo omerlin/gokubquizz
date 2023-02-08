@@ -14,7 +14,7 @@ kubernetes:
       - {id: 2, label: Multiple}
       - {id: 3, label: One or two}
   - id: 3
-    question: How does the GCP LoadBalancer routes traffic to the correct pod ?
+    question: How does the Cloud Provider LoadBalancer routes traffic to the correct pod ?
     options:
       - {id: 1, label: The load balancer uses a nodePort that is exposed on all non-master nodes}
       - {id: 2, label: The load balancer uses DNS and service discovery }
